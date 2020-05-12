@@ -16,10 +16,12 @@ InterruptIn button3(SW3);
 EventQueue queue_music(32 * EVENTS_EVENT_SIZE);
 EventQueue queue_display(32 * EVENTS_EVENT_SIZE);
 EventQueue queue_communicate(32 * EVENTS_EVENT_SIZE);
+EventQueue queue_taiko(32 * EVENTS_EVENT_SIZE);
 Thread music;
 Thread dnn;
 Thread display;
 Thread receive_send;
+Thread taiko;
 int idC = 0;
 int mode = 0;
 int song_num = 0;
@@ -28,14 +30,18 @@ int stop = 1;
 int16_t waveform[kAudioTxBufferSize];
 char serialInBuffer[bufferLength];
 int serialCount = 0;
+int taiko_start = 0;
+int hit_num = 0;
+int hit_gesture;
 
 int song_k66f[42] = {0};
 int noteLength_k66f[42] = {0};
 int Song_Length = 42;
+int hit[42] = {0};
 
 DigitalOut green_led(LED2);
 
-int noteLength[42] = {
+int noteLength_taiko[42] = {
   1, 1, 1, 1, 1, 1, 2,
   1, 1, 1, 1, 1, 1, 2,
   1, 1, 1, 1, 1, 1, 2,
@@ -43,16 +49,17 @@ int noteLength[42] = {
   1, 1, 1, 1, 1, 1, 2,
   1, 1, 1, 1, 1, 1, 2};
 
-
-//
-/*
-int song_k66f[42] = {
+int song_taiko[42] = {
   261, 261, 392, 392, 440, 440, 392,
   349, 349, 330, 330, 294, 294, 261,
   392, 392, 349, 349, 330, 330, 294,
   392, 392, 349, 349, 330, 330, 294,
   261, 261, 392, 392, 440, 440, 392,
   349, 349, 330, 330, 294, 294, 261};
+
+//
+/*
+
 
 int noteLength_k66f[42] = {
   1, 1, 1, 1, 1, 1, 2,
@@ -166,6 +173,7 @@ void playNote(int freq)
 
 void playNote(int freq)
 {
+  taiko_start = 1;
   for(int i = 0; i < kAudioTxBufferSize; i++)
   {
     waveform[i] = (int16_t) (sin((double)i * 2. * M_PI/(double) (kAudioSampleFrequency / freq)) * ((1<<16) - 1));
@@ -269,10 +277,30 @@ void loadSong(void)
       {
         queue_music.call(playNote, song_k66f[i]);
       }
-      if(length < 1) wait(1.0);
+      if(length >= 0) wait(1.0);
     }
   }
 }
+
+void taiko_play(void) 
+{
+  taiko_start = 1;
+  for(int i = 0; i < 42; i++)
+  {
+    int length = noteLength_taiko[i];
+    while(length--)
+    {
+      // the loop below will play the note for the duration of 1s
+      for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
+      {
+        queue_music.call(playNote, song_taiko[i]);
+      }
+      if(length >= 0) wait(1.0);
+    }
+  }
+  audio.spk.pause();
+}
+
 
 void uLCDu() {
   if (mode == 0) { 
@@ -280,43 +308,98 @@ void uLCDu() {
     uLCD.printf("* Forward\n");
     uLCD.printf("  Backward\n");
     uLCD.printf("  change songs\n");
+    uLCD.printf("  Taiko game\n");
   }
   else if (mode == 1) {
     uLCD.cls();
     uLCD.printf("  Forward\n");
     uLCD.printf("* Backward\n");
     uLCD.printf("  change songs\n");
+    uLCD.printf("  Taiko game\n");
   }
   else if (mode == 2) { 
     uLCD.cls();
     uLCD.printf("  Forward\n");
     uLCD.printf("  Backward\n");
     uLCD.printf("* change songs\n");
+    uLCD.printf("  Taiko game\n");
   }
-  else if (mode == 4) {
+  else if (mode == 3) {
+    uLCD.cls();
+    uLCD.printf("  Forward\n");
+    uLCD.printf("  Backward\n");
+    uLCD.printf("  change songs\n");
+    uLCD.printf("* Taiko game\n");
+  }
+  else if (mode == 5) {
     uLCD.cls();
     uLCD.printf("Song PLAY\n");
-  }
-  else if (mode == 6) {
-    uLCD.cls();
-    uLCD.printf("Song Selection\n\n");
-    uLCD.printf("* Bee\n");
-    uLCD.printf("  Do Do Do\n");
-    uLCD.printf("  Ra Ra Ra\n");
+    uLCD.locate(0,5);
+    if (song_num == 0)
+      uLCD.printf("Star\n");
+    else if (song_num == 1)
+      uLCD.printf("Do Do Do\n");
+    else if (song_num == 2)
+      uLCD.printf("La La La\n");    
   }
   else if (mode == 7) {
     uLCD.cls();
     uLCD.printf("Song Selection\n\n");
-    uLCD.printf("  Bee\n");
-    uLCD.printf("* Do Do Do\n");
+    uLCD.printf("* STAR\n");
+    uLCD.printf("  Do Do Do\n");
     uLCD.printf("  Ra Ra Ra\n");
-  } 
+  }
   else if (mode == 8) {
     uLCD.cls();
     uLCD.printf("Song Selection\n\n");
-    uLCD.printf("  Bee\n");
+    uLCD.printf("  STAR\n");
+    uLCD.printf("* Do Do Do\n");
+    uLCD.printf("  Ra Ra Ra\n");
+  } 
+  else if (mode == 9) {
+    uLCD.cls();
+    uLCD.printf("Song Selection\n\n");
+    uLCD.printf("  STAR\n");
     uLCD.printf("  Do Do Do\n");
     uLCD.printf("* Ra Ra Ra\n");
+  }
+  else if(mode == 20) {
+    float score = 0;
+    float accurancy = 0;
+
+    uLCD.cls();
+    uLCD.printf("Start Taiko game\n");
+    uLCD.locate(0,6);
+    uLCD.printf("Score: %lf\n", score);
+
+    queue_taiko.call(taiko_play);
+    
+
+    for (int i = 0; i < 42; i++) {
+      int length = noteLength_taiko[i];
+      while(length--) {
+        hit_gesture = 0;
+        uLCD.locate(0,4);
+        uLCD.printf("%d", noteLength_taiko[i]);
+        
+        wait(0.5);
+        hit[hit_num++] = hit_gesture;
+        uLCD.locate(0,9);
+        uLCD.printf("Hit_gesture: %d\n", hit_gesture);
+        uLCD.locate(0,4);
+        uLCD.printf("   ");
+        wait(0.2);  // total wait only 0.7 here, but it will be the same period as 1sec as taiko_play
+      }
+    }
+    
+    for (int i = 0; i < 42; i++) {
+      if (hit[i] == noteLength_taiko[i])
+        accurancy = accurancy + 1;
+    }
+    score = accurancy / 42.0;
+    uLCD.locate(0,6);
+    uLCD.printf("Score: %lf %lf\n", accurancy, score);
+
   }   
 }
 
@@ -351,35 +434,42 @@ void dnn_go(void) {
     // Produce an output
     if (gesture_index < label_num) {
       // error_reporter->Report(config.output_message[gesture_index]);
-      
-      // mode selection
-      if (0 <= mode && mode <= 2) {
-        if (gesture_index == 0) {
-          mode++;
-          if (mode==3)
-            mode = 0;
-        }
-        if (gesture_index == 2) {
-          mode--;
-          if (mode == -1)
-            mode = 2;
-        }
-      }
 
-      // change song selection
-      if (6 <= mode && mode <= 8) {
-        if (gesture_index == 0) {
-          mode++;
-          if (mode == 9)
-            mode = 6;
-        }
-        if (gesture_index == 2) {
-          mode--;
-          if (mode == 5)
-            mode = 8;
-        }
+      if (taiko_start == 1) {
+        if (gesture_index == 0)
+          hit_gesture = 1;
+        else if (gesture_index == 2)
+          hit_gesture = 2;
       }
-      queue_display.call(uLCDu);
+      else {
+        // mode selection
+        if (0 <= mode && mode <= 3) {
+          if (gesture_index == 0) {
+            mode++;
+            if (mode==4)
+              mode = 0;
+          }
+          if (gesture_index == 2) {
+            mode--;
+            if (mode == -1)
+              mode = 3;
+          }
+        }
+        // change song selection
+        if (6 <= mode && mode <= 8) {
+          if (gesture_index == 0) {
+            mode++;
+            if (mode == 9)
+              mode = 6;
+          }
+          if (gesture_index == 2) {
+            mode--;
+            if (mode == 5)
+              mode = 8;
+          }
+        }
+        queue_display.call(uLCDu);
+      }
     }
   }
 }
@@ -387,6 +477,7 @@ void dnn_go(void) {
 void modeSelection(void) {
   mode = 0;
   stop = 1;
+  taiko_start = 0;
   audio.spk.pause();
   queue_display.call(uLCDu);
 }
@@ -398,7 +489,7 @@ void confirm(void) {
     if (song_num == 3)
       song_num = 2;
     pc.printf("%d\n", song_num);
-    mode = 4;
+    mode = 5;
     uLCDu();
     loadSong();
   }
@@ -407,35 +498,40 @@ void confirm(void) {
     if (song_num == -1)
       song_num = 0;
     pc.printf("%d\n", song_num);
-    mode = 4;
+    mode = 5;
     uLCDu();
     loadSong();
   }
   else if (mode == 2){    // mode == 2
-    mode = 6;
+    mode = 7;
     uLCDu();
   }
-  else if (mode == 6) {
-    song_num = 0;
-    pc.printf("%d\n", song_num);
-    mode = 4;
+  else if (mode == 3) { // Taiko
+    mode = 20;
     uLCDu();
-    loadSong();
   }
   else if (mode == 7) {
-    song_num = 1;
+    song_num = 0;
     pc.printf("%d\n", song_num);
-    mode = 4;
+    mode = 5;
     uLCDu();
     loadSong();
   }
   else if (mode == 8) {
-    song_num = 2;
+    song_num = 1;
     pc.printf("%d\n", song_num);
-    mode = 4;
+    mode = 5;
     uLCDu();
     loadSong();
   }
+  else if (mode == 9) {
+    song_num = 2;
+    pc.printf("%d\n", song_num);
+    mode = 5;
+    uLCDu();
+    loadSong();
+  }
+  
 }
 
 int main(int argc, char* argv[]) {
@@ -444,6 +540,7 @@ int main(int argc, char* argv[]) {
   music.start(callback(&queue_music, &EventQueue::dispatch_forever));
   receive_send.start(callback(&queue_communicate, &EventQueue::dispatch_forever));
   display.start(callback(&queue_display, &EventQueue::dispatch_forever));
+  taiko.start(callback(&queue_taiko, &EventQueue::dispatch_forever));
   button2.rise(modeSelection);
   button3.rise(queue_communicate.event(confirm));
 
@@ -451,7 +548,7 @@ int main(int argc, char* argv[]) {
   uLCD.printf("* Forward\n");
   uLCD.printf("  Backward\n");
   uLCD.printf("  change songs\n");  
-  
+  uLCD.printf("  Taiko game\n");
   /*
 
   */

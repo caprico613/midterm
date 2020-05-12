@@ -2,7 +2,7 @@ import numpy as np
 import serial
 import time
 
-waitTime = 0.1
+waitTime = 0.15
 num = 0
 Song_Length = 42
 
@@ -58,7 +58,7 @@ noteLength_py[2] = [
   2, 2, 2, 2, 2, 2, 2]
 
 # send the waveform table to K66F
-serdev = '/dev/ttyACM19'
+serdev = '/dev/ttyACM29'
 s = serial.Serial(serdev)
 
 # output formatter
