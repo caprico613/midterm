@@ -58,22 +58,21 @@ noteLength_py[2] = [
   2, 2, 2, 2, 2, 2, 2]
 
 # send the waveform table to K66F
-serdev = '/dev/ttyACM1'
+serdev = '/dev/ttyACM14'
 s = serial.Serial(serdev)
 
 # output formatter
 formatter = lambda x: "%d" % x
 
 
+
+
+
 while (1):
   line = s.readline() # Read an echo string from K66F terminated with '\n'
   # print line
-  num = num + int(line)
-  if (num < 0):   
-      num = 0
-  elif (num > 2):
-      num = 2
-
+  num = int(line)
+  print(num)
   for i in range(Song_Length):
     s.write(bytes(formatter(song_py[num][i]), 'UTF-8'))
     time.sleep(waitTime)
@@ -82,13 +81,13 @@ while (1):
     s.write(bytes(formatter(noteLength_py[num][i]), 'UTF-8'))
     time.sleep(waitTime)
 
-# num = 0
+# num = 2
 # for i in range(Song_Length):
-#   s.write(bytes(formatter(song_py[num][i]), 'UTF-8'))
+#   print(bytes(formatter(song_py[num][i]), 'UTF-8'))
 #   time.sleep(waitTime)
 
 # for i in range(Song_Length):
-#   s.write(bytes(formatter(noteLength_py[num][i]), 'UTF-8'))
+#   print(bytes(formatter(noteLength_py[num][i]), 'UTF-8'))
 #   time.sleep(waitTime)
 
 s.close()

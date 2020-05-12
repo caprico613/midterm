@@ -22,6 +22,8 @@ Thread display;
 Thread receive_send;
 int idC = 0;
 int mode = 0;
+int song_num = 0;
+int stop = 1;
 
 int16_t waveform[kAudioTxBufferSize];
 char serialInBuffer[bufferLength];
@@ -182,7 +184,7 @@ void loadSong(void)
   }
   green_led = 1;
 */
-
+  stop = 0;
   green_led = 0;
   int i = 0;
   serialCount = 0;
@@ -227,7 +229,7 @@ void loadSong(void)
 
   // play song
   
-  for(int i = 0; i < Song_Length; i++) {
+  for(int i = 0; i < Song_Length && stop != 1; i++) {
       int length = noteLength_k66f[i];
       while(length--) {
           // the loop below will play the note for the duration of 1s
@@ -240,20 +242,7 @@ void loadSong(void)
   
 }
 
-void uLCDu(void) {
-  if (0 <= mode && mode <= 2) {
-    if (gesture_index == 0) {
-      mode++;
-      if (mode==3)
-        mode = 0;
-    }
-    if (gesture_index == 2) {
-      mode--;
-      if (mode == -1)
-        mode = 2;
-    }
-  }
-
+void uLCDu() {
   if (mode == 0) { 
     uLCD.cls();
     uLCD.printf("* Forward\n");
@@ -272,14 +261,31 @@ void uLCDu(void) {
     uLCD.printf("  Backward\n");
     uLCD.printf("* change songs\n");
   }
-  else if (mode == 5) {
+  else if (mode == 4) {
     uLCD.cls();
     uLCD.printf("Song PLAY\n");
   }
   else if (mode == 6) {
     uLCD.cls();
-    uLCD.printf("Not do yet\n");
-  }  
+    uLCD.printf("Song Selection\n\n");
+    uLCD.printf("* Bee\n");
+    uLCD.printf("  Do Do Do\n");
+    uLCD.printf("  Ra Ra Ra\n");
+  }
+  else if (mode == 7) {
+    uLCD.cls();
+    uLCD.printf("Song Selection\n\n");
+    uLCD.printf("  Bee\n");
+    uLCD.printf("* Do Do Do\n");
+    uLCD.printf("  Ra Ra Ra\n");
+  } 
+  else if (mode == 8) {
+    uLCD.cls();
+    uLCD.printf("Song Selection\n\n");
+    uLCD.printf("  Bee\n");
+    uLCD.printf("  Do Do Do\n");
+    uLCD.printf("* Ra Ra Ra\n");
+  }   
 }
 
 
@@ -313,7 +319,35 @@ void dnn_go(void) {
     // Produce an output
     if (gesture_index < label_num) {
       // error_reporter->Report(config.output_message[gesture_index]);
-      uLCDu();
+      
+      // mode selection
+      if (0 <= mode && mode <= 2) {
+        if (gesture_index == 0) {
+          mode++;
+          if (mode==3)
+            mode = 0;
+        }
+        if (gesture_index == 2) {
+          mode--;
+          if (mode == -1)
+            mode = 2;
+        }
+      }
+
+      // change song selection
+      if (6 <= mode && mode <= 8) {
+        if (gesture_index == 0) {
+          mode++;
+          if (mode == 9)
+            mode = 6;
+        }
+        if (gesture_index == 2) {
+          mode--;
+          if (mode == 5)
+            mode = 8;
+        }
+      }
+      queue_display.call(uLCDu);
     }
   }
 }
@@ -324,6 +358,7 @@ void dnn_go(void) {
 
 void modeSelection(void) {
   mode = 0;
+  stop = 1;
   audio.spk.pause();
   queue_display.call(uLCDu);
 }
@@ -331,22 +366,47 @@ void modeSelection(void) {
 void confirm(void) {
   
   if (mode == 0) {
-    pc.printf("-1\n");
-    
-    mode = 5;
+    song_num++;
+    if (song_num == 3)
+      song_num = 2;
+    pc.printf("%d\n", song_num);
+    mode = 4;
     uLCDu();
     loadSong();
   }
   else if (mode == 1) {
-    pc.printf("1\n");
-    
-    mode = 5;
+    song_num--;
+    if (song_num == -1)
+      song_num = 0;
+    pc.printf("%d\n", song_num);
+    mode = 4;
     uLCDu();
     loadSong();
   }
   else if (mode == 2){    // mode == 2
     mode = 6;
     uLCDu();
+  }
+  else if (mode == 6) {
+    song_num = 0;
+    pc.printf("%d\n", song_num);
+    mode = 4;
+    uLCDu();
+    loadSong();
+  }
+  else if (mode == 7) {
+    song_num = 1;
+    pc.printf("%d\n", song_num);
+    mode = 4;
+    uLCDu();
+    loadSong();
+  }
+  else if (mode == 8) {
+    song_num = 2;
+    pc.printf("%d\n", song_num);
+    mode = 4;
+    uLCDu();
+    loadSong();
   }
 }
 
