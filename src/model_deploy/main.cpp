@@ -13,10 +13,10 @@ Serial pc(USBTX, USBRX);
 InterruptIn button2(SW2);
 InterruptIn button3(SW3);
 
-EventQueue queue(32 * EVENTS_EVENT_SIZE);
+EventQueue queue_music(32 * EVENTS_EVENT_SIZE);
 EventQueue queue_display(32 * EVENTS_EVENT_SIZE);
 EventQueue queue_communicate(32 * EVENTS_EVENT_SIZE);
-// Thread t;
+Thread music;
 Thread dnn;
 Thread display;
 Thread receive_send;
@@ -24,13 +24,35 @@ int idC = 0;
 int mode = 0;
 
 int16_t waveform[kAudioTxBufferSize];
+char serialInBuffer[bufferLength];
+int serialCount = 0;
+
 int song_k66f[42] = {0};
 int noteLength_k66f[42] = {0};
 int Song_Length = 42;
 
 DigitalOut green_led(LED2);
 
+//
+/*
+int song_k66f[42] = {
+  261, 261, 392, 392, 440, 440, 392,
+  349, 349, 330, 330, 294, 294, 261,
+  392, 392, 349, 349, 330, 330, 294,
+  392, 392, 349, 349, 330, 330, 294,
+  261, 261, 392, 392, 440, 440, 392,
+  349, 349, 330, 330, 294, 294, 261};
 
+int noteLength_k66f[42] = {
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2};
+*/
+
+//
 
 #include "accelerometer_handler.h"
 #include "config.h"
@@ -132,10 +154,11 @@ void playNote(int freq)
 
 void loadSong(void)
 {
-  
+  /*
   green_led = 0;
   int i = 0, j = 0;
   audio.spk.pause();
+  
   char tmp[4];
   char ch;
   
@@ -147,40 +170,88 @@ void loadSong(void)
           pc.getc();
           tmp[j] = '\0';
           song_k66f[i] = (int)atof(tmp);
+          pc.printf("%d: %d\n\r", i, song_k66f[i]);
       }
       
       for (i = 0; i < Song_Length; i++) {
           ch = pc.getc();
           pc.getc();
-          noteLength_k66f[i] = ch - '0';     
+          noteLength_k66f[i] = ch - '0';
+          pc.printf("%d: %d\n\r", i, noteLength_k66f[i]);     
       }
   }
   green_led = 1;
+*/
+
+  green_led = 0;
+  int i = 0;
+  serialCount = 0;
+  // audio.spk.pause();
+  while(i < Song_Length)
+  {
+    if(pc.readable())
+    {
+
+      serialInBuffer[serialCount] = pc.getc();
+      serialCount++;
+      if(serialCount == 3)
+      {
+        serialInBuffer[serialCount] = '\0';
+        song_k66f[i] = (int) atof(serialInBuffer);
+        // pc.printf("%d: %d\n\r", i, song_k66f[i]);
+        serialCount = 0;
+        i++;
+      }
+    }
+  }
+
+  i = 0;
+  while(i < Song_Length)
+  {
+    if(pc.readable())
+    {
+      serialInBuffer[serialCount] = pc.getc();
+      serialCount++;
+      if(serialCount == 1)
+      {
+        serialInBuffer[serialCount] = '\0';
+        noteLength_k66f[i] = (int) atof(serialInBuffer);
+        // pc.printf("%d: %d\n\r", i, noteLength_k66f[i]);
+        serialCount = 0;
+        i++;
+      }
+    }
+  }
+
+  green_led = 1;
 
   // play song
+  
   for(int i = 0; i < Song_Length; i++) {
       int length = noteLength_k66f[i];
       while(length--) {
           // the loop below will play the note for the duration of 1s
           for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j) {
-              queue.call(playNote, song_k66f[i]);
+              queue_music.call(playNote, song_k66f[i]);
           }
           if(length < 1) wait(1.0);
       }
   }
-
+  
 }
 
 void uLCDu(void) {
-  if (gesture_index == 0) {
-    mode++;
-    if (mode==3)
-      mode = 0;
-  }
-  if (gesture_index == 2) {
-    mode--;
-    if (mode == -1)
-      mode = 2;
+  if (0 <= mode && mode <= 2) {
+    if (gesture_index == 0) {
+      mode++;
+      if (mode==3)
+        mode = 0;
+    }
+    if (gesture_index == 2) {
+      mode--;
+      if (mode == -1)
+        mode = 2;
+    }
   }
 
   if (mode == 0) { 
@@ -243,48 +314,46 @@ void dnn_go(void) {
     if (gesture_index < label_num) {
       // error_reporter->Report(config.output_message[gesture_index]);
       uLCDu();
-
     }
   }
 }
 
+// void loadSongHandler(void) {queue.call(loadSong);}
 
-
-
-
-void loadSongHandler(void) {queue.call(loadSong);}
-
-void stopPlayNoteC(void) {queue.cancel(idC);}
+// void stopPlayNoteC(void) {queue.cancel(idC);}
 
 void modeSelection(void) {
   mode = 0;
+  audio.spk.pause();
   queue_display.call(uLCDu);
 }
 
 void confirm(void) {
+  
   if (mode == 0) {
     pc.printf("-1\n");
-    loadSong();
+    
     mode = 5;
     uLCDu();
+    loadSong();
   }
   else if (mode == 1) {
     pc.printf("1\n");
-    loadSong();
+    
     mode = 5;
     uLCDu();
+    loadSong();
   }
-  else {    // mode == 3
+  else if (mode == 2){    // mode == 2
     mode = 6;
     uLCDu();
   }
-
 }
 
 int main(int argc, char* argv[]) {
 
   green_led = 1;
-  // t.start(callback(&queue, &EventQueue::dispatch_forever));
+  music.start(callback(&queue_music, &EventQueue::dispatch_forever));
   receive_send.start(callback(&queue_communicate, &EventQueue::dispatch_forever));
   display.start(callback(&queue_display, &EventQueue::dispatch_forever));
   button2.rise(modeSelection);
