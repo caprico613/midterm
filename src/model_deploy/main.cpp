@@ -35,6 +35,15 @@ int Song_Length = 42;
 
 DigitalOut green_led(LED2);
 
+int noteLength[42] = {
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2,
+  1, 1, 1, 1, 1, 1, 2};
+
+
 //
 /*
 int song_k66f[42] = {
@@ -145,10 +154,20 @@ int PredictGesture(float* output) {
 
   return this_predict;
 }
-
+/*
 void playNote(int freq)
 {
   for(int i = 0; i < kAudioTxBufferSize; i++) {
+    waveform[i] = (int16_t) (sin((double)i * 2. * M_PI/(double) (kAudioSampleFrequency / freq)) * ((1<<16) - 1));
+  }
+  audio.spk.play(waveform, kAudioTxBufferSize);
+}
+*/
+
+void playNote(int freq)
+{
+  for(int i = 0; i < kAudioTxBufferSize; i++)
+  {
     waveform[i] = (int16_t) (sin((double)i * 2. * M_PI/(double) (kAudioSampleFrequency / freq)) * ((1<<16) - 1));
   }
   audio.spk.play(waveform, kAudioTxBufferSize);
@@ -218,7 +237,7 @@ void loadSong(void)
       {
         serialInBuffer[serialCount] = '\0';
         noteLength_k66f[i] = (int) atof(serialInBuffer);
-        // pc.printf("%d: %d\n\r", i, noteLength_k66f[i]);
+        // uLCD.printf("%d: %d\n\r", i, noteLength_k66f[i]);
         serialCount = 0;
         i++;
       }
@@ -228,7 +247,7 @@ void loadSong(void)
   green_led = 1;
 
   // play song
-  
+  /*
   for(int i = 0; i < Song_Length && stop != 1; i++) {
       int length = noteLength_k66f[i];
       while(length--) {
@@ -239,7 +258,20 @@ void loadSong(void)
           if(length < 1) wait(1.0);
       }
   }
-  
+  */
+  for(int i = 0; i < 42 && stop != 1; i++)
+  {
+    int length = noteLength_k66f[i];
+    while(length--)
+    {
+      // the loop below will play the note for the duration of 1s
+      for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j)
+      {
+        queue_music.call(playNote, song_k66f[i]);
+      }
+      if(length < 1) wait(1.0);
+    }
+  }
 }
 
 void uLCDu() {
@@ -351,10 +383,6 @@ void dnn_go(void) {
     }
   }
 }
-
-// void loadSongHandler(void) {queue.call(loadSong);}
-
-// void stopPlayNoteC(void) {queue.cancel(idC);}
 
 void modeSelection(void) {
   mode = 0;

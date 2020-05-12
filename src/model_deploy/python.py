@@ -58,7 +58,7 @@ noteLength_py[2] = [
   2, 2, 2, 2, 2, 2, 2]
 
 # send the waveform table to K66F
-serdev = '/dev/ttyACM14'
+serdev = '/dev/ttyACM19'
 s = serial.Serial(serdev)
 
 # output formatter
